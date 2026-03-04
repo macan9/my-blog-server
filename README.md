@@ -12,3 +12,10 @@
 1. **安装依赖**
    ```bash
    npm install
+2. **项目结构**
+   ```bash
+   ├── app.js              # 入口
+   ├── config/             # 数据库配置
+   ├── routes/             # 路由控制
+   ├── services/           # 业务逻辑 (加密/DB操作)
+   └── package.json
