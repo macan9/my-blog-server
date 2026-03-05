@@ -5,8 +5,11 @@ const router = express.Router();
 // 引入服务层
 const userService = require('../services/userService');
 
+// 引入中间件
+const authMiddleware = require('../middleware/auth');
+
 // POST /api/users - 创建用户
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
 	const { username, password, email } = req.body;
 
 	if (!username || !password) {
@@ -96,33 +99,21 @@ router.delete('/:id', async (req, res) => {
 // POST /api/users/login - 登录测试
 router.post('/login', async (req, res) => {
 	const { username, password } = req.body;
-
-	// 1. 基础校验
-	if (!username || !password) {
-		return res.status(400).json({ error: '用户名和密码不能为空' });
-	}
-
+	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
+  
 	try {
-		// 2. 调用服务层验证
-		const user = await userService.login(username, password);
-
-		if (!user) {
-			// 登录失败（用户不存在 或 密码错误）
-			// 为了安全，通常不提示具体是哪种错误，统一提示“用户名或密码错误”
-			return res.status(401).json({ error: '用户名或密码错误' });
-		}
-
-		// 3. 登录成功
-		// 在实际项目中，这里通常会生成一个 JWT Token 返回给前端
-		res.status(200).json({
-			message: '登录成功',
-			data: user
-		});
-
-	} catch (error) {
-		console.error('登录过程出错:', error);
-		res.status(500).json({ error: '服务器内部错误', details: error.message });
+	  const user = await userService.login(username, password);
+	  if (!user) return res.status(401).json({ error: '用户名或密码错误' });
+	  res.status(200).json({ message: '登录成功', data: user });
+	} catch (err) {
+	  console.error(err);
+	  res.status(500).json({ error: '服务器内部错误' });
 	}
+});
+  
+// 受保护接口，必须登录才能访问
+router.get('/profile', authMiddleware, async (req, res) => {
+	res.json({ message: '获取用户信息成功', user: req.user });
 });
 
 module.exports = router;

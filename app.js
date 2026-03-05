@@ -1,10 +1,8 @@
-// 采用环境配置 dotenv
-require('dotenv').config(); 
+
 
 // app.js
 const express = require('express');
 const bodyParser = require('body-parser');
-
 
 const userRoutes = require('./routes/userRoutes');
 

@@ -1,6 +1,7 @@
 // services/userService.js  业务逻辑
-const db = require('../config/database');
+const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 /**
  * 1. 获取所有用户
@@ -108,7 +109,18 @@ async function login(username, password) {
 
 	// 4. 密码匹配成功，返回用户信息（记得把 password_hash 删掉再返回，安全第一）
 	const { password_hash, ...userInfo } = user;
-	return userInfo;
+
+	// 5. 生成 token
+	const token = jwt.sign(
+		{ id: user.id, username: user.username }, // payload
+		process.env.JWT_SECRET,
+		{ expiresIn: process.env.JWT_EXPIRES_IN } // 时效控制
+	);
+
+	return {
+		user: userInfo,
+		token
+	};
 }
 
 module.exports = {
