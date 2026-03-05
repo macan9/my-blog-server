@@ -14,8 +14,8 @@ const PORT = process.env.PORT || 3000;
 // 中间件
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
 app.use(express.json());
+
 // 挂载路由
 app.use('/api/users', userRoutes);
 
