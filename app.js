@@ -1,10 +1,12 @@
+// 采用环境配置 dotenv
+require('dotenv').config(); 
+
 // app.js
 const express = require('express');
 const bodyParser = require('body-parser');
-const userRoutes = require('./routes/userRoutes');
 
-// 如果使用了 dotenv，请取消下面这行的注释
-require('dotenv').config(); 
+
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
