@@ -93,7 +93,7 @@ router.delete('/:id', async (req, res) => {
 	}
 });
 
-// POST /api/login - 登录测试
+// POST /api/users/login - 登录测试
 router.post('/login', async (req, res) => {
 	const { username, password } = req.body;
 
