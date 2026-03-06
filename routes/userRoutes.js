@@ -9,7 +9,7 @@ const userService = require('../services/userService');
 const authMiddleware = require('../middleware/auth');
 
 // POST /api/users - 创建用户
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', async (req, res) => {
 	const { username, password, email } = req.body;
 
 	if (!username || !password) {
@@ -32,7 +32,7 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // GET /api/users - 获取所有用户
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware,async (req, res) => {
 	try {
 		const users = await userService.getAllUsers();
 		res.json({ success: true, data: users });
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/users/:id - 获取单个用户
-router.get('/:id', async (req, res) => {
+router.get('/:id', authMiddleware,async (req, res) => {
 	try {
 		const user = await userService.getUserById(req.params.id);
 
@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/users/:id - 更新用户
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
 	try {
 		// 简单的参数校验
 		if (!req.body || Object.keys(req.body).length === 0) {
@@ -83,7 +83,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/users/:id - 删除用户
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
 	try {
 		await userService.deleteUser(req.params.id);
 		res.json({ success: true, message: '用户删除成功' });
@@ -109,11 +109,6 @@ router.post('/login', async (req, res) => {
 		console.error(err);
 		res.status(500).json({ error: '服务器内部错误' });
 	}
-});
-
-// 受保护接口，必须登录才能访问
-router.get('/profile', authMiddleware, async (req, res) => {
-	res.json({ message: '获取用户信息成功', user: req.user });
 });
 
 module.exports = router;
