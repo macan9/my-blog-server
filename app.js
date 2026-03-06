@@ -4,7 +4,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 
-const userRoutes = require('./routes/userRoutes');
+
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,8 +15,13 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 
-// 挂载路由
+// 引入路由
+const userRoutes = require('./routes/userRoutes');
+const postRoutes = require('./routes/postRoutes');
+
+// 注册路由前缀
 app.use('/api/users', userRoutes);
+app.use('/api/posts', postRoutes);
 
 // 简单首页测试
 app.get('/', (req, res) => {

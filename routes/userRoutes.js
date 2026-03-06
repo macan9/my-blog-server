@@ -1,4 +1,5 @@
-// routes/userRoutes.js
+// routes/userRoutes.js   
+// 负责接收 HTTP 请求、提取参数、调用 Service、处理异常并返回响应
 const express = require('express');
 const router = express.Router();
 

@@ -1,4 +1,5 @@
-// services/userService.js  业务逻辑
+// services/userService.js  
+// 负责与数据库交互和业务逻辑处理，不包含 HTTP 请求/响应对象 (req, res)
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
