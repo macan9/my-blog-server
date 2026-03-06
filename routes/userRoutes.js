@@ -100,17 +100,17 @@ router.delete('/:id', async (req, res) => {
 router.post('/login', async (req, res) => {
 	const { username, password } = req.body;
 	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
-  
+
 	try {
-	  const user = await userService.login(username, password);
-	  if (!user) return res.status(401).json({ error: '用户名或密码错误' });
-	  res.status(200).json({ message: '登录成功', data: user });
+		const user = await userService.login(username, password);
+		if (!user) return res.status(401).json({ error: '用户名或密码错误' });
+		res.status(200).json({ message: '登录成功', data: user });
 	} catch (err) {
-	  console.error(err);
-	  res.status(500).json({ error: '服务器内部错误' });
+		console.error(err);
+		res.status(500).json({ error: '服务器内部错误' });
 	}
 });
-  
+
 // 受保护接口，必须登录才能访问
 router.get('/profile', authMiddleware, async (req, res) => {
 	res.json({ message: '获取用户信息成功', user: req.user });

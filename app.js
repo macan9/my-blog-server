@@ -19,10 +19,10 @@ app.use('/api/users', userRoutes);
 
 // 简单首页测试
 app.get('/', (req, res) => {
-  res.send('博客服务已启动！请访问 /api/users 测试接口。');
+	res.send('博客服务已启动！请访问 /api/users 测试接口。');
 });
 
 // 启动服务器
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+	console.log(`Server is running on http://localhost:${PORT}`);
 });
