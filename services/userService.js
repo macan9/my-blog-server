@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
  */
 async function getAllUsers() {
 	// 方式 A: 链式调用 (推荐，更安全)
-	const rows = await db.select('id', 'username', 'email', 'created_at').from('users');
+	const rows = await db.select('id', 'username', 'email', 'created_at','auth').from('users');
 	return rows;
 }
 
@@ -25,28 +25,35 @@ async function getUserById(id) {
  * @returns {Object} - 返回插入结果（包含 insertId）
  */
 async function createUser(userData) {
-	const { username, password, email } = userData;
+	const { username, password, email, auth } = userData;
+	console.log('userData',userData)
 
 	// 2. 【关键】先对密码进行哈希加密
 	const saltRounds = 10;
 	const passwordHash = await bcrypt.hash(password, saltRounds);
 
 	// 3. 【关键】修改 insert 对象中的键名为 password_hash
+	 
 	const [insertId] = await db.into('users').insert({
 		username: username,
 		email: email || null,
+		auth: auth || 2,
 		password_hash: passwordHash, // <--- 这里改了：从 password 改为 password_hash
 		created_at: db.fn.now()
 	});
 
+	const [newUser] = await db('users').select('*').where({ id: insertId });
+
 	return {
 		userId: insertId,
 		username,
-		email
+		email,
+		auth,
+		created_at: newUser.created_at
 	};
 }
 
-// 4. 更新用户 (新增 - 核心优化点)
+// 4. 更新用户
 async function updateUser(id, updateData) {
 	// 先检查用户是否存在
 	const existingUser = await db('users').where({ id }).first();
@@ -70,7 +77,7 @@ async function updateUser(id, updateData) {
 }
 
 
-// 5. 删除用户 (新增)
+// 5. 删除用户
 async function deleteUser(id) {
 	const deletedCount = await db('users').where({ id }).del();
 	if (deletedCount === 0) {

@@ -7,17 +7,18 @@ const userService = require('../services/userService');
 
 // 引入中间件
 const authMiddleware = require('../middleware/auth');
+const permissionMiddleware = require('../middleware/permission');
 
 // POST /api/users - 创建用户
 router.post('/', async (req, res) => {
-	const { username, password, email } = req.body;
+	const { username, password, email, auth } = req.body;
 
 	if (!username || !password) {
 		return res.status(400).json({ error: '用户名和密码不能为空' });
 	}
 
 	try {
-		const newUser = await userService.createUser({ username, password, email });
+		const newUser = await userService.createUser({ username, password, email, auth });
 		res.status(201).json({
 			message: '用户创建成功',
 			data: newUser
@@ -27,7 +28,11 @@ router.post('/', async (req, res) => {
 		if (error.code === 'ER_DUP_ENTRY') {
 			return res.status(409).json({ error: '用户名已存在' });
 		}
-		res.status(500).json({ error: '服务器内部错误', details: error.message });
+		// 安全处理，避免循环引用
+        return res.status(500).json({
+            error: '服务器内部错误',
+            details: error.message || String(error)
+        });
 	}
 });
 
@@ -59,8 +64,9 @@ router.get('/:id', authMiddleware,async (req, res) => {
 });
 
 // PUT /api/users/:id - 更新用户
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, permissionMiddleware, async (req, res) => {
 	try {
+
 		// 简单的参数校验
 		if (!req.body || Object.keys(req.body).length === 0) {
 			return res.status(400).json({ success: false, error: '请求体不能为空' });
@@ -83,7 +89,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/users/:id - 删除用户
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, permissionMiddleware, async (req, res) => {
 	try {
 		await userService.deleteUser(req.params.id);
 		res.json({ success: true, message: '用户删除成功' });
