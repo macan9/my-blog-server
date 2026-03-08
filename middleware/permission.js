@@ -1,8 +1,15 @@
+const userService = require('../services/userService'); // 引入
 async function permissionMiddleware(req, res, next) {
+	// 1. 直接从 req.user 获取，这是认证中间件查好的
 	const currentUser = req.user;
-	const targetUserId = Number(req.params.id);
+
+	// 【安全检查】如果前面的认证中间件没生效，req.user 会是 undefined
+	if (!currentUser) {
+		return res.status(401).json({ error: '未登录或认证失败' });
+	}
 
 	try {
+		const targetUserId = Number(req.params.id);
 		const targetUser = await userService.getUserById(targetUserId);
 
 		if (!targetUser) {
@@ -33,7 +40,9 @@ async function permissionMiddleware(req, res, next) {
 		return res.status(403).json({ error: '权限不足' });
 
 	} catch (err) {
-		return res.status(500).json({ error: '权限校验失败' });
+		return res.status(500).json({
+			error: '权限校验失败'
+		});
 	}
 }
 
