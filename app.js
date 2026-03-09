@@ -24,10 +24,6 @@ const postRoutes = require('./routes/postRoutes');
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 
-// 简单首页测试
-app.get('/', (req, res) => {
-	res.send('博客服务已启动！请访问 /api/users 测试接口。');
-});
 
 // 启动服务器
 app.listen(PORT, () => {

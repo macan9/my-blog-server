@@ -7,5 +7,11 @@ module.exports = {
 		migrations: {
 			directory: './migrations'
 		}
+	},
+	production: {
+		...config,
+		migrations: {
+			directory: './migrations'
+		}
 	}
 };

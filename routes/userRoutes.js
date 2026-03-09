@@ -30,15 +30,15 @@ router.post('/', async (req, res) => {
 			return res.status(409).json({ error: '用户名已存在' });
 		}
 		// 安全处理，避免循环引用
-        return res.status(500).json({
-            error: '服务器内部错误',
-            details: error.message || String(error)
-        });
+		return res.status(500).json({
+			error: '服务器内部错误',
+			details: error.message || String(error)
+		});
 	}
 });
 
 // GET /api/users - 获取所有用户
-router.get('/', authMiddleware,async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
 	try {
 		const users = await userService.getAllUsers();
 		res.json({ success: true, data: users });
@@ -49,7 +49,7 @@ router.get('/', authMiddleware,async (req, res) => {
 });
 
 // GET /api/users/:id - 获取单个用户
-router.get('/:id', authMiddleware,async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
 	try {
 		const user = await userService.getUserById(req.params.id);
 
