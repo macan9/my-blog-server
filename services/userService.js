@@ -152,11 +152,77 @@ async function login(username, password) {
 	};
 }
 
+/**
+ * 获取登录日志，支持分页和时间范围
+ * @param {Object} options
+ * @param {number|string} [options.currentPage=1]
+ * @param {number|string} [options.pageSize=10]
+ * @param {string} [options.startTime]
+ * @param {string} [options.endTime]
+ */
+async function getLoginLogs({ currentPage = 1, pageSize = 10, startTime, endTime } = {}) {
+	const page = Math.max(parseInt(currentPage, 10) || 1, 1);
+	const size = Math.max(parseInt(pageSize, 10) || 10, 1);
+	const offset = (page - 1) * size;
+
+	const baseQuery = db('login_logs')
+		.select('id', 'user_id', 'username', 'ip', 'user_agent', 'success', 'message', 'created_at');
+
+	if (startTime) {
+		baseQuery.where('created_at', '>=', startTime);
+	}
+	if (endTime) {
+		baseQuery.where('created_at', '<=', endTime);
+	}
+
+	const [rows, [{ total }]] = await Promise.all([
+		baseQuery.clone().orderBy('created_at', 'desc').limit(size).offset(offset),
+		db('login_logs')
+			.modify((qb) => {
+				if (startTime) qb.where('created_at', '>=', startTime);
+				if (endTime) qb.where('created_at', '<=', endTime);
+			})
+			.count({ total: '*' })
+	]);
+
+	return {
+		list: rows,
+		pagination: {
+			currentPage: page,
+			pageSize: size,
+			total: Number(total) || 0
+		}
+	};
+}
+
+/**
+ * 记录登录日志
+ * @param {Object} params
+ * @param {number|null} params.userId
+ * @param {string} params.username
+ * @param {string|null} params.ip
+ * @param {string|null} params.userAgent
+ * @param {boolean} params.success
+ * @param {string|null} params.message
+ */
+async function logLoginAttempt({ userId = null, username, ip = null, userAgent = null, success, message = null }) {
+	await db('login_logs').insert({
+		user_id: userId,
+		username,
+		ip,
+		user_agent: userAgent,
+		success,
+		message
+	});
+}
+
 module.exports = {
 	getAllUsers,
 	getUserById,
 	createUser,
 	updateUser,
 	deleteUser,
-	login
+	login,
+	logLoginAttempt,
+	getLoginLogs
 };

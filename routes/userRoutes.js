@@ -9,6 +9,7 @@ const userService = require('../services/userService');
 // 引入中间件
 const authMiddleware = require('../middleware/auth');
 const permissionMiddleware = require('../middleware/permission');
+const adminOnly = require('../middleware/adminOnly');
 
 // POST /api/users - 创建用户
 router.post('/', async (req, res) => {
@@ -44,6 +45,27 @@ router.get('/', authMiddleware, async (req, res) => {
 		res.json({ success: true, data: users });
 	} catch (error) {
 		console.error('获取用户列表失败:', error);
+		res.status(500).json({ success: false, error: '服务器内部错误' });
+	}
+});
+
+// GET /api/users/login-logs - 获取登录日志（需要管理员权限）
+// 支持分页与时间范围过滤：
+// - currentPage: 当前页（从 1 开始）
+// - pageSize: 每页数量
+// - start_time / end_time: 时间范围（例如：2025-03-11 20:48:24）
+router.get('/login-logs', authMiddleware, adminOnly, async (req, res) => {
+	try {
+		const { currentPage, pageSize, start_time, end_time } = req.query;
+		const result = await userService.getLoginLogs({
+			currentPage,
+			pageSize,
+			startTime: start_time,
+			endTime: end_time
+		});
+		res.json({ success: true, data: result });
+	} catch (error) {
+		console.error('获取登录日志失败:', error);
 		res.status(500).json({ success: false, error: '服务器内部错误' });
 	}
 });
@@ -103,18 +125,75 @@ router.delete('/:id', authMiddleware, permissionMiddleware, async (req, res) => 
 	}
 });
 
-// POST /api/users/login - 登录测试
+// POST /api/users/login - 登录（带登录日志）
 router.post('/login', async (req, res) => {
 	const { username, password } = req.body;
 	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
 
+	// 获取 IP 和 UA（考虑反向代理）
+	const ip =
+		(req.headers['x-forwarded-for'] && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
+		req.ip ||
+		req.socket?.remoteAddress ||
+		null;
+	const userAgent = req.headers['user-agent'] || null;
+
 	try {
-		const user = await userService.login(username, password);
-		if (!user) return res.status(401).json({ error: '用户名或密码错误' });
-		res.status(200).json({ message: '登录成功', data: user });
+		const loginResult = await userService.login(username, password);
+
+		if (!loginResult) {
+			// 登录失败（用户名/密码错误）
+			await userService.logLoginAttempt({
+				userId: null,
+				username,
+				ip,
+				userAgent,
+				success: false,
+				message: '用户名或密码错误'
+			});
+			return res.status(401).json({ error: '用户名或密码错误' });
+		}
+
+		// 登录成功
+		await userService.logLoginAttempt({
+			userId: loginResult.user.id,
+			username: loginResult.user.username,
+			ip,
+			userAgent,
+			success: true,
+			message: '登录成功'
+		});
+
+		res.status(200).json({ message: '登录成功', data: loginResult });
 	} catch (err) {
 		console.error(err);
+
+		// 异常也记录为一次失败的登录尝试
+		try {
+			await userService.logLoginAttempt({
+				userId: null,
+				username,
+				ip,
+				userAgent,
+				success: false,
+				message: '服务器异常：' + (err.message || String(err))
+			});
+		} catch (logErr) {
+			console.error('记录登录日志失败：', logErr);
+		}
+
 		res.status(500).json({ error: '服务器内部错误' });
+	}
+});
+
+// GET /api/users/login-logs - 获取登录日志（需要管理员权限）
+router.get('/login-logs', authMiddleware, permissionMiddleware, async (req, res) => {
+	try {
+		const logs = await userService.getLoginLogs();
+		res.json({ success: true, data: logs });
+	} catch (error) {
+		console.error('获取登录日志失败:', error);
+		res.status(500).json({ success: false, error: '服务器内部错误' });
 	}
 });
 
