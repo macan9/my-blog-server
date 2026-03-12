@@ -10,9 +10,10 @@ const userService = require('../services/userService');
 const authMiddleware = require('../middleware/auth');
 const permissionMiddleware = require('../middleware/permission');
 const adminOnly = require('../middleware/adminOnly');
+const validateCaptcha = require('../middleware/validateCaptcha');
 
-// POST /api/users - 创建用户
-router.post('/', async (req, res) => {
+// POST /api/users - 创建用户（注册，带图形验证码）
+router.post('/', validateCaptcha, async (req, res) => {
 	const { username, password, email, auth } = req.body;
 
 	if (!username || !password) {
@@ -125,8 +126,8 @@ router.delete('/:id', authMiddleware, permissionMiddleware, async (req, res) => 
 	}
 });
 
-// POST /api/users/login - 登录（带登录日志）
-router.post('/login', async (req, res) => {
+// POST /api/users/login - 登录（带图形验证码 + 登录日志）
+router.post('/login', validateCaptcha, async (req, res) => {
 	const { username, password } = req.body;
 	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
 

@@ -3,9 +3,8 @@
 // app.js
 const express = require('express');
 const bodyParser = require('body-parser');
-
-const cors = require('cors')
-
+const session = require('express-session');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,16 +13,37 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(cors())
+
+// CORS，允许携带 Cookie（用于 session 验证码）
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:8010';
+app.use(
+	cors({
+		origin: FRONTEND_ORIGIN,
+		credentials: true
+	})
+);
+
+// session（用于存储图形验证码等）
+app.use(
+	session({
+		secret: process.env.SESSION_SECRET || 'dev-session-secret',
+		resave: false,
+		saveUninitialized: true,
+		cookie: {
+			maxAge: 10 * 60 * 1000 // 10 分钟
+		}
+	})
+);
 
 // 引入路由
 const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
+const captchaRoutes = require('./routes/captchaRoutes');
 
 // 注册路由前缀
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
-
+app.use('/api', captchaRoutes);
 
 // 启动服务器
 app.listen(PORT, () => {

@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
  */
 async function getAllUsers() {
 	// 方式 A: 链式调用 (推荐，更安全)
-	const rows = await db.select('id', 'username', 'email', 'created_at', 'auth').from('users');
+	const rows = await db.select('id', 'username', 'email', 'created_at', 'auth','avatar').from('users');
 	return rows;
 }
 

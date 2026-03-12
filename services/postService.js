@@ -186,6 +186,7 @@ async function getPostList(options = {}) {
 		'posts.summary',
 		'posts.slug',
 		'posts.status',
+		'posts.content',
 		'posts.created_at',
 		'posts.updated_at',
 		'users.username as author_name',
