@@ -45,6 +45,11 @@ app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api', captchaRoutes);
 
+// 添加根路径处理，避免意外触发中间件
+app.get('/', (req, res) => {
+    res.status(200).json({ message: 'Welcome to the API. Please use /api endpoints.' });
+});
+
 // 启动服务器
 app.listen(PORT, () => {
 	console.log(`Server is running on http://localhost:${PORT}`);
