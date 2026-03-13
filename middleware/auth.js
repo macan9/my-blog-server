@@ -22,7 +22,12 @@ async function authMiddleware(req, res, next) {
         }
 		// console.log("decoded,user:",decoded,user,)
 
-		// 3.如果用户重新登录了，数据库 version 会变 (+1)，而旧 Token 里的 version 还是旧的
+        // 3.如果用户重新登录了，数据库 version 会变 (+1)，而旧 Token 里的 version 还是旧的
+        // 【修复】检查 tokenVersion 是否存在，如果不存在视为旧 token 无效
+        if (!decoded.tokenVersion) {
+            return res.status(401).json({ error: '旧Token无效，请重新登录' });
+        }
+        // console.log("decoded.tokenVersion:", decoded.tokenVersion, "user.token_version:", user.token_version);
 		if (decoded.tokenVersion !== user.token_version) {
 			return res.status(401).json({ error: '会话已失效，您已在其他设备登录' });
 		}

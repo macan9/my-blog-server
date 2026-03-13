@@ -9,13 +9,13 @@ const jwt = require('jsonwebtoken');
  */
 async function getAllUsers() {
 	// 方式 A: 链式调用 (推荐，更安全)
-	const rows = await db.select('id', 'username', 'email', 'created_at', 'auth','avatar').from('users');
+	const rows = await db.select('id', 'username', 'email', 'created_at', 'auth','avatar', 'nickname', 'mobile', 'description', 'token_version').from('users');
 	return rows;
 }
 
 // 2. 获取单个用户
 async function getUserById(id) {
-	const user = await db('users').select('id', 'username', 'email', 'created_at', 'auth','token_version').where({ id }).first();
+	const user = await db('users').select('id', 'username', 'email', 'created_at', 'auth','avatar', 'nickname', 'mobile', 'description', 'token_version').where({ id }).first();
 	return user || null;
 }
 
