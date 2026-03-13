@@ -75,7 +75,8 @@ router.get('/', authMiddleware, async (req, res, next) => {
       keyword, 
       startDate, 
       endDate, 
-      status 
+      status,
+      userId
     } = req.query;
 
     // 场景判断：
@@ -85,7 +86,7 @@ router.get('/', authMiddleware, async (req, res, next) => {
     // 这里演示一个通用的列表接口，通过参数控制是否查自己的
     // 或者你可以拆分两个路由：/my (强制 userId) 和 / (公开)
     
-    let userId = null;
+    
     
     // 示例：如果请求路径是 /my，或者有个参数 ?mine=true
     if (req.path === '/my' || req.query.mine === 'true') {

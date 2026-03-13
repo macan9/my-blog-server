@@ -121,6 +121,7 @@ async function getPostList(options = {}) {
 
 	const applyFilters = (query) => {
 		// 1. 根据用户ID筛选
+		// console.log('userId:', userId);
 		if (userId) {
 			query.where('posts.user_id', userId);
 		}
