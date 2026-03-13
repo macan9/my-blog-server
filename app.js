@@ -6,6 +6,9 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const cors = require('cors');
 
+const dotenv = require('dotenv');
+dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -16,12 +19,28 @@ app.use(express.json());
 
 // CORS，允许携带 Cookie（用于 session 验证码）
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:8010';
-app.use(
-	cors({
-		origin: FRONTEND_ORIGIN,
-		credentials: true
-	})
-);
+console.log('FRONTEND_ORIGIN=', FRONTEND_ORIGIN);
+const corsOptions = {
+	origin: FRONTEND_ORIGIN,
+	credentials: true,
+}
+app.use(cors(corsOptions))
+
+// 简单请求 /captcha，允许 credentials
+// app.use('/api/captcha', cors({
+//   origin: true,
+//   credentials: true
+// }));
+
+// // 登录 / 用户相关接口，需要 Authorization header
+// app.use('/api/users', cors({
+//   origin: true,
+//   credentials: true,
+//   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language']
+// }));
+
+
+
 
 // session（用于存储图形验证码等）
 app.use(
@@ -30,7 +49,10 @@ app.use(
 		resave: false,
 		saveUninitialized: true,
 		cookie: {
-			maxAge: 10 * 60 * 1000 // 10 分钟
+			maxAge: 10 * 60 * 1000,// 10 分钟
+			httpOnly: true,               // JS 无法读取
+			secure: false,                // HTTP 下必须 false
+			sameSite: 'lax'               // 简单跨域兼容 HTTP
 		}
 	})
 );
@@ -47,10 +69,10 @@ app.use('/api', captchaRoutes);
 
 // 添加根路径处理，避免意外触发中间件
 app.get('/', (req, res) => {
-    res.status(200).json({ message: 'Welcome to the API. Please use /api endpoints.' });
+	res.status(200).json({ message: 'Welcome to the API. Please use /api endpoints.' });
 });
 
 // 启动服务器
-app.listen(PORT, () => {
-	console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+	console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });
