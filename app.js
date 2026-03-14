@@ -1,5 +1,3 @@
-
-
 // app.js
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -18,29 +16,22 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 
 // CORS，允许携带 Cookie（用于 session 验证码）
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:8010';
-console.log('FRONTEND_ORIGIN=', FRONTEND_ORIGIN);
+const FRONTEND_ORIGINS_RAW = process.env.FRONTEND_ORIGIN || 'http://localhost:8010';
+const FRONTEND_ORIGINS = FRONTEND_ORIGINS_RAW
+  .split(/[,\s]+/)
+  .map((v) => v.trim())
+  .filter(Boolean);
+console.log('FRONTEND_ORIGINS=', FRONTEND_ORIGINS);
 const corsOptions = {
-	origin: FRONTEND_ORIGIN,
-	credentials: true,
+  origin: (origin, callback) => {
+    // Allow non-browser requests (curl/postman) with no Origin header
+    if (!origin) return callback(null, true);
+    if (FRONTEND_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS blocked origin: ' + origin));
+  },
+  credentials: true,
 }
 app.use(cors(corsOptions))
-
-// 简单请求 /captcha，允许 credentials
-// app.use('/api/captcha', cors({
-//   origin: true,
-//   credentials: true
-// }));
-
-// // 登录 / 用户相关接口，需要 Authorization header
-// app.use('/api/users', cors({
-//   origin: true,
-//   credentials: true,
-//   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language']
-// }));
-
-
-
 
 // session（用于存储图形验证码等）
 app.use(

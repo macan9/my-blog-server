@@ -1,5 +1,6 @@
-const express = require('express');
+﻿const express = require('express');
 const svgCaptcha = require('svg-captcha');
+const captchaStore = require('../services/captchaStore');
 
 const router = express.Router();
 
@@ -16,23 +17,55 @@ router.get('/captcha', (req, res) => {
 		return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
 	}
 
-	// 生成验证码
 	const captcha = svgCaptcha.create({
 		size: 4,
 		noise: 2,
 		color: true,
-		ignoreChars: '0oO1ilI', // 避免易混淆字符
+		ignoreChars: '0oO1ilI',
 		background: '#f5f5f5'
 	});
 
-	// 存入 session，统一用小写存储
+	// 存入 session（统一用小写存储）
 	req.session.captchaText = captcha.text.toLowerCase();
 	req.session.lastCaptchaAt = now;
 
-	// 返回 SVG 图片
+	// 同时发放一个短期 token，便于跨域/不携带 cookie 的客户端使用
+	const captchaId = captchaStore.put(captcha.text);
+	res.set('X-Captcha-Id', captchaId);
+	res.set('Access-Control-Expose-Headers', 'X-Captcha-Id');
+
 	res.type('svg');
 	res.status(200).send(captcha.data);
 });
 
-module.exports = router;
+// GET /api/captcha/json - JSON 版本，返回 { captchaId, svg }
+router.get('/captcha/json', (req, res) => {
+	const now = Date.now();
 
+	// 如果 session 可用就做限频（不强制要求 session）
+	if (req.session) {
+		const lastTime = req.session.lastCaptchaAt || 0;
+		if (now - lastTime < 1000) {
+			return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+		}
+		req.session.lastCaptchaAt = now;
+	}
+
+	const captcha = svgCaptcha.create({
+		size: 4,
+		noise: 2,
+		color: true,
+		ignoreChars: '0oO1ilI',
+		background: '#f5f5f5'
+	});
+
+	if (req.session) req.session.captchaText = captcha.text.toLowerCase();
+
+	const captchaId = captchaStore.put(captcha.text);
+	res.set('X-Captcha-Id', captchaId);
+	res.set('Access-Control-Expose-Headers', 'X-Captcha-Id');
+
+	return res.status(200).json({ captchaId, svg: captcha.data });
+});
+
+module.exports = router;

@@ -12,10 +12,30 @@
 1. **安装依赖**
    ```bash
    npm install
-2. **项目结构**
+   ```
+
+2. **配置环境变量**（创建 `.env`）
    ```bash
-   ├── app.js              # 入口
-   ├── config/             # 数据库配置
-   ├── routes/             # 路由控制
-   ├── services/           # 业务逻辑 (加密/DB操作)
-   └── package.json
+   PORT=3000
+   SESSION_SECRET=your-session-secret
+
+   # 允许的前端域名：支持多个（逗号或空格分隔）
+   FRONTEND_ORIGIN=http://localhost:8010,https://a.example.com,https://b.example.com
+   ```
+
+3. **启动服务**
+   ```bash
+   npm run dev
+   # 或
+   npm start
+   ```
+
+## 📁 项目结构
+
+```text
+├── app.js              # 入口
+├── config/             # 数据库配置
+├── routes/             # 路由控制
+├── services/           # 业务逻辑 (加密/DB操作)
+└── package.json
+```
