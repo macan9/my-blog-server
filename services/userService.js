@@ -59,21 +59,67 @@ async function updateUser(id, updateData) {
 	// 先检查用户是否存在
 	const existingUser = await db('users').where({ id }).first();
 	if (!existingUser) {
-		throw new Error('用户不存在');
+		const err = new Error('用户不存在');
+		err.statusCode = 404;
+		throw err;
 	}
 
-	// 如果要更新密码，必须重新哈希
-	const dataToUpdate = { ...updateData };
-	if (dataToUpdate.password) {
+	// 只允许更新这些字段，避免把前端额外传的字段（比如 oldPassword/newPassword/confirmPassword）
+	// 直接 update 到数据库导致“未知列”报错
+	const allowedFields = new Set(['username', 'email', 'auth', 'avatar', 'nickname', 'mobile', 'description']);
+	const dataToUpdate = {};
+	for (const key of Object.keys(updateData || {})) {
+		if (allowedFields.has(key) && updateData[key] !== undefined) {
+			dataToUpdate[key] = updateData[key];
+		}
+	}
+
+	// 修改密码：支持两种传参方式
+	// 1) { password: 'newPwd' }
+	// 2) { oldPassword: 'oldPwd', newPassword: 'newPwd' }
+	const nextPassword =
+		updateData && updateData.newPassword !== undefined ? updateData.newPassword : updateData?.password;
+	const hasPasswordChange = nextPassword !== undefined;
+
+	if (hasPasswordChange) {
+		if (typeof nextPassword !== 'string' || nextPassword.trim() === '') {
+			const err = new Error('密码不能为空');
+			err.statusCode = 400;
+			throw err;
+		}
+
+		// 如果传了 oldPassword，就校验一次（没传则不强制，便于管理员重置等场景）
+		if (updateData.oldPassword !== undefined && updateData.oldPassword !== null) {
+			if (typeof updateData.oldPassword !== 'string' || updateData.oldPassword.trim() === '') {
+				const err = new Error('原密码不能为空');
+				err.statusCode = 400;
+				throw err;
+			}
+			const isMatch = await bcrypt.compare(updateData.oldPassword, existingUser.password_hash);
+			if (!isMatch) {
+				const err = new Error('原密码错误');
+				err.statusCode = 400;
+				throw err;
+			}
+		}
+
 		const saltRounds = 10;
-		dataToUpdate.password_hash = await bcrypt.hash(dataToUpdate.password, saltRounds);
-		delete dataToUpdate.password; // 移除明文密码字段，避免写入错误列
+		dataToUpdate.password_hash = await bcrypt.hash(nextPassword, saltRounds);
+
+		// 修改密码后，提升 token_version，让老 token 立即失效（auth 中间件会校验）
+		dataToUpdate.token_version = (existingUser.token_version || 0) + 1;
 	}
 
-	// 执行更新 (忽略 created_at 等不可变字段)
-	await db('users').where({ id }).update(dataToUpdate);
+	if (Object.keys(dataToUpdate).length === 0) {
+		const err = new Error('没有可更新的字段');
+		err.statusCode = 400;
+		throw err;
+	}
 
-	// 返回更新后的最新数据
+	// 归一化更新时间（表存在 updated_at 时生效）
+	dataToUpdate.updated_at = db.fn.now();
+
+	await db('users').where({ id }).update(dataToUpdate);
 	return getUserById(id);
 }
 

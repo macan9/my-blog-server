@@ -104,9 +104,11 @@ router.put('/:id', authMiddleware, permissionMiddleware, async (req, res) => {
 			data: updatedUser
 		});
 	} catch (error) {
-		if (error.message === '用户不存在') {
-			return res.status(404).json({ success: false, error: error.message });
+		const status = error?.statusCode || error?.status || null;
+		if (status && status >= 400 && status < 600) {
+			return res.status(status).json({ success: false, error: error.message || '请求失败' });
 		}
+		if (error.message === '用户不存在') return res.status(404).json({ success: false, error: error.message });
 		console.error('更新用户失败:', error);
 		res.status(500).json({ success: false, error: '服务器内部错误', details: error.message });
 	}
