@@ -52,11 +52,15 @@ app.use(
 const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
 const captchaRoutes = require('./routes/captchaRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 // 注册路由前缀
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api', captchaRoutes);
+// upload: support both /upload/* and /api/upload/*
+app.use('/', uploadRoutes);
+app.use('/api', uploadRoutes);
 
 // 添加根路径处理，避免意外触发中间件
 app.get('/', (req, res) => {
