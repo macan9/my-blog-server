@@ -53,11 +53,13 @@ const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
 const captchaRoutes = require('./routes/captchaRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const gameScoreRoutes = require('./routes/gameScoreRoutes');
 
 // 注册路由前缀
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api', captchaRoutes);
+app.use('/api/game-scores', gameScoreRoutes);
 // upload: support both /upload/* and /api/upload/*
 app.use('/', uploadRoutes);
 app.use('/api', uploadRoutes);
