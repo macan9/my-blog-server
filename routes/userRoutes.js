@@ -14,14 +14,14 @@ const validateCaptcha = require('../middleware/validateCaptcha');
 
 // POST /api/users - 创建用户（注册，带图形验证码）
 router.post('/', validateCaptcha, async (req, res) => {
-	const { username, password, email, auth } = req.body;
+	const { username, password, email, auth, passwordEncrypted } = req.body;
 
 	if (!username || !password) {
 		return res.status(400).json({ error: '用户名和密码不能为空' });
 	}
 
 	try {
-		const newUser = await userService.createUser({ username, password, email, auth });
+		const newUser = await userService.createUser({ username, password, email, auth, passwordEncrypted });
 		res.status(201).json({
 			message: '用户创建成功',
 			data: newUser
@@ -130,7 +130,7 @@ router.delete('/:id', authMiddleware, permissionMiddleware, async (req, res) => 
 
 // POST /api/users/login - 登录（带图形验证码 + 登录日志）
 router.post('/login', validateCaptcha, async (req, res) => {
-	const { username, password } = req.body;
+	const { username, password, passwordEncrypted } = req.body;
 	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
 
 	// 获取 IP 和 UA（考虑反向代理）
@@ -142,7 +142,7 @@ router.post('/login', validateCaptcha, async (req, res) => {
 	const userAgent = req.headers['user-agent'] || null;
 
 	try {
-		const loginResult = await userService.login(username, password);
+		const loginResult = await userService.login(username, password, { passwordEncrypted });
 
 		if (!loginResult) {
 			// 登录失败（用户名/密码错误）

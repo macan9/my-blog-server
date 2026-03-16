@@ -1,45 +1,72 @@
-// services/userService.js  
-// 负责与数据库交互和业务逻辑处理，不包含 HTTP 请求/响应对象 (req, res)
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-/**
- * 1. 获取所有用户
- */
-async function getAllUsers() {
-	// 方式 A: 链式调用 (推荐，更安全)
-	const rows = await db.select('id', 'username', 'email', 'created_at', 'auth','avatar', 'nickname', 'mobile', 'description', 'token_version').from('users');
-	return rows;
+function normalizePasswordInput(password, passwordEncrypted) {
+	if (typeof password !== 'string') {
+		return password;
+	}
+
+	return passwordEncrypted ? password.trim() : password;
 }
 
-// 2. 获取单个用户
+async function comparePassword(password, passwordHash, passwordEncrypted = false) {
+	const normalizedPassword = normalizePasswordInput(password, passwordEncrypted);
+	return bcrypt.compare(normalizedPassword, passwordHash);
+}
+
+async function hashPasswordForStorage(password, passwordEncrypted = false) {
+	const normalizedPassword = normalizePasswordInput(password, passwordEncrypted);
+	const saltRounds = 10;
+	return bcrypt.hash(normalizedPassword, saltRounds);
+}
+
+async function getAllUsers() {
+	return db
+		.select(
+			'id',
+			'username',
+			'email',
+			'created_at',
+			'auth',
+			'avatar',
+			'nickname',
+			'mobile',
+			'description',
+			'token_version'
+		)
+		.from('users');
+}
+
 async function getUserById(id) {
-	const user = await db('users').select('id', 'username', 'email', 'created_at', 'auth','avatar', 'nickname', 'mobile', 'description', 'token_version').where({ id }).first();
+	const user = await db('users')
+		.select(
+			'id',
+			'username',
+			'email',
+			'created_at',
+			'auth',
+			'avatar',
+			'nickname',
+			'mobile',
+			'description',
+			'token_version'
+		)
+		.where({ id })
+		.first();
+
 	return user || null;
 }
 
-
-/**
- * 3. 新增用户
- * @param {Object} userData - 包含 username, password, email 的对象
- * @returns {Object} - 返回插入结果（包含 insertId）
- */
 async function createUser(userData) {
-	const { username, password, email, auth } = userData;
-	console.log('userData', userData)
-
-	// 2. 【关键】先对密码进行哈希加密
-	const saltRounds = 10;
-	const passwordHash = await bcrypt.hash(password, saltRounds);
-
-	// 3. 【关键】修改 insert 对象中的键名为 password_hash
+	const { username, password, email, auth, passwordEncrypted = false } = userData;
+	const passwordHash = await hashPasswordForStorage(password, passwordEncrypted === true);
 
 	const [insertId] = await db.into('users').insert({
-		username: username,
+		username,
 		email: email || null,
 		auth: auth || 2,
-		password_hash: passwordHash, // <--- 这里改了：从 password 改为 password_hash
+		password_hash: passwordHash,
 		created_at: db.fn.now()
 	});
 
@@ -54,9 +81,7 @@ async function createUser(userData) {
 	};
 }
 
-// 4. 更新用户
 async function updateUser(id, updateData) {
-	// 先检查用户是否存在
 	const existingUser = await db('users').where({ id }).first();
 	if (!existingUser) {
 		const err = new Error('用户不存在');
@@ -64,19 +89,16 @@ async function updateUser(id, updateData) {
 		throw err;
 	}
 
-	// 只允许更新这些字段，避免把前端额外传的字段（比如 oldPassword/newPassword/confirmPassword）
-	// 直接 update 到数据库导致“未知列”报错
 	const allowedFields = new Set(['username', 'email', 'auth', 'avatar', 'nickname', 'mobile', 'description']);
 	const dataToUpdate = {};
+
 	for (const key of Object.keys(updateData || {})) {
 		if (allowedFields.has(key) && updateData[key] !== undefined) {
 			dataToUpdate[key] = updateData[key];
 		}
 	}
 
-	// 修改密码：支持两种传参方式
-	// 1) { password: 'newPwd' }
-	// 2) { oldPassword: 'oldPwd', newPassword: 'newPwd' }
+	const passwordEncrypted = updateData?.passwordEncrypted === true;
 	const nextPassword =
 		updateData && updateData.newPassword !== undefined ? updateData.newPassword : updateData?.password;
 	const hasPasswordChange = nextPassword !== undefined;
@@ -88,14 +110,18 @@ async function updateUser(id, updateData) {
 			throw err;
 		}
 
-		// 如果传了 oldPassword，就校验一次（没传则不强制，便于管理员重置等场景）
 		if (updateData.oldPassword !== undefined && updateData.oldPassword !== null) {
 			if (typeof updateData.oldPassword !== 'string' || updateData.oldPassword.trim() === '') {
 				const err = new Error('原密码不能为空');
 				err.statusCode = 400;
 				throw err;
 			}
-			const isMatch = await bcrypt.compare(updateData.oldPassword, existingUser.password_hash);
+
+			const isMatch = await comparePassword(
+				updateData.oldPassword,
+				existingUser.password_hash,
+				passwordEncrypted
+			);
 			if (!isMatch) {
 				const err = new Error('原密码错误');
 				err.statusCode = 400;
@@ -103,10 +129,7 @@ async function updateUser(id, updateData) {
 			}
 		}
 
-		const saltRounds = 10;
-		dataToUpdate.password_hash = await bcrypt.hash(nextPassword, saltRounds);
-
-		// 修改密码后，提升 token_version，让老 token 立即失效（auth 中间件会校验）
+		dataToUpdate.password_hash = await hashPasswordForStorage(nextPassword, passwordEncrypted);
 		dataToUpdate.token_version = (existingUser.token_version || 0) + 1;
 	}
 
@@ -116,15 +139,12 @@ async function updateUser(id, updateData) {
 		throw err;
 	}
 
-	// 归一化更新时间（表存在 updated_at 时生效）
 	dataToUpdate.updated_at = db.fn.now();
 
 	await db('users').where({ id }).update(dataToUpdate);
 	return getUserById(id);
 }
 
-
-// 5. 删除用户
 async function deleteUser(id) {
 	const deletedCount = await db('users').where({ id }).del();
 	if (deletedCount === 0) {
@@ -133,63 +153,44 @@ async function deleteUser(id) {
 	return true;
 }
 
-/**
- * 用户登录验证
- * @param {string} username - 用户名
- * @param {string} password - 用户输入的明文密码
- * @returns {Object|null} - 登录成功返回用户信息(不含密码)，失败返回 null
- */
-async function login(username, password) {
-	// 1. 先根据用户名查找用户
-	// 注意：这里只查 username 和 password_hash，不要查所有字段以防泄露
+async function login(username, password, options = {}) {
+	const { passwordEncrypted = false } = options;
+
 	const user = await db('users')
 		.select('id', 'username', 'email', 'password_hash', 'created_at', 'token_version', 'auth')
 		.where({ username })
-		.first(); // .first() 表示只取第一条结果
+		.first();
 
-	// 2. 如果没找到用户，直接返回 null
 	if (!user) {
 		return null;
 	}
 
-	// 3. 【关键】比对密码
-	// bcrypt.compare(明文密码, 数据库里的哈希值)
-	const isMatch = await bcrypt.compare(password, user.password_hash);
-	// 密码不匹配
-	if (!isMatch) { return null }
+	const isMatch = await comparePassword(password, user.password_hash, passwordEncrypted);
+	if (!isMatch) {
+		return null;
+	}
 
-	// ==========================================
-	// 4. 【新增】密码匹配成功，更新登录追踪字段
-	// ==========================================
-
-	//  版本号 +1
-    const newVersion = (user.token_version || 0) + 1;
-	console.log("newVersion:",newVersion)
-	// 计算过期时间 (假设 JWT_EXPIRES_IN 是 '1h', '7d' 等字符串，需要解析或直接存字符串)
-	// 如果数据库字段类型是 DATETIME/TIMESTAMP，建议存具体的时间对象
-	// 最佳实践：解析 jwt 的 exp 时间戳存入数据库
-	const decodedTemp = jwt.decode(jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN }));
-	const expiresTimestamp = decodedTemp.exp * 1000; // 转为毫秒
+	const newVersion = (user.token_version || 0) + 1;
+	const decodedTemp = jwt.decode(
+		jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN })
+	);
+	const expiresTimestamp = decodedTemp.exp * 1000;
 	const tokenExpiresDate = new Date(expiresTimestamp);
+
 	await db('users')
 		.where({ id: user.id })
 		.update({
-			last_login_at: new Date(),       // 更新最后登录时间
-			last_token: 'active',            // 或者存 token 的前几位/哈希值 (不要存完整 token，太大且不安全)
-			token_expires_at: tokenExpiresDate, // 更新 token 过期时间
-			token_version: newVersion 
+			last_login_at: new Date(),
+			last_token: 'active',
+			token_expires_at: tokenExpiresDate,
+			token_version: newVersion
 		});
 
-	// 5. 密码匹配成功，返回用户信息（记得把 password_hash 删掉再返回，安全第一）
 	const { password_hash, ...userInfo } = user;
-
-	// 6. 生成 token
 	const token = jwt.sign(
-		{ id: user.id, username: user.username, tokenVersion: newVersion }, 
-		// <--- 关键：把新版本号写进 Token
+		{ id: user.id, username: user.username, tokenVersion: newVersion },
 		process.env.JWT_SECRET,
-		{ expiresIn: process.env.JWT_EXPIRES_IN }, // 时效控制
-		  
+		{ expiresIn: process.env.JWT_EXPIRES_IN }
 	);
 
 	return {
@@ -198,14 +199,6 @@ async function login(username, password) {
 	};
 }
 
-/**
- * 获取登录日志，支持分页和时间范围
- * @param {Object} options
- * @param {number|string} [options.currentPage=1]
- * @param {number|string} [options.pageSize=10]
- * @param {string} [options.startTime]
- * @param {string} [options.endTime]
- */
 async function getLoginLogs({ currentPage = 1, pageSize = 10, startTime, endTime } = {}) {
 	const page = Math.max(parseInt(currentPage, 10) || 1, 1);
 	const size = Math.max(parseInt(pageSize, 10) || 10, 1);
@@ -241,16 +234,6 @@ async function getLoginLogs({ currentPage = 1, pageSize = 10, startTime, endTime
 	};
 }
 
-/**
- * 记录登录日志
- * @param {Object} params
- * @param {number|null} params.userId
- * @param {string} params.username
- * @param {string|null} params.ip
- * @param {string|null} params.userAgent
- * @param {boolean} params.success
- * @param {string|null} params.message
- */
 async function logLoginAttempt({ userId = null, username, ip = null, userAgent = null, success, message = null }) {
 	await db('login_logs').insert({
 		user_id: userId,
