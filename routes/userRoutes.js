@@ -131,6 +131,15 @@ router.delete('/:id', authMiddleware, permissionMiddleware, async (req, res) => 
 // POST /api/users/login - 登录（带图形验证码 + 登录日志）
 router.post('/login', validateCaptcha, async (req, res) => {
 	const { username, password, passwordEncrypted } = req.body;
+
+	console.log('login debug:', {
+		username,
+		password,
+		passwordLength: typeof password === 'string' ? password.length : null,
+		passwordEncrypted,
+		passwordEncryptType: req.body.passwordEncryptType
+	});
+	
 	if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
 
 	// 获取 IP 和 UA（考虑反向代理）
