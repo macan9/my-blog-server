@@ -6,6 +6,14 @@ const giteeUploadService = require('../services/giteeUploadService');
 
 const router = express.Router();
 
+function buildAttachmentDisposition(filename) {
+	const safeName = String(filename || 'download')
+		.replace(/[\r\n"]/g, '')
+		.replace(/[^\x20-\x7E]/g, '_');
+	const encodedName = encodeURIComponent(filename || 'download');
+	return `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`;
+}
+
 const upload = multer({
 	storage: multer.memoryStorage(),
 	limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
@@ -39,6 +47,47 @@ router.get('/upload/gitee/contents', authMiddleware, async (req, res) => {
 		return res.status(status >= 400 && status < 600 ? status : 500).json({
 			success: false,
 			error: 'get gitee contents failed',
+			details: message,
+		});
+	}
+});
+
+router.get('/upload/gitee/download', async (req, res) => {
+	try {
+		const downloadPath = req.query?.path;
+		if (downloadPath == null || String(downloadPath).trim() === '') {
+			return res.status(400).json({ success: false, error: 'missing query: path' });
+		}
+
+		const result = await giteeUploadService.getDownloadFile({
+			path: downloadPath,
+		});
+
+		res.setHeader('Content-Disposition', buildAttachmentDisposition(result.filename));
+		res.setHeader('Content-Type', result.contentType);
+		if (result.contentLength) {
+			res.setHeader('Content-Length', result.contentLength);
+		}
+
+		result.stream.on('error', (err) => {
+			if (!res.headersSent) {
+				res.status(502).json({
+					success: false,
+					error: 'download stream failed',
+					details: err?.message || String(err),
+				});
+			} else {
+				res.destroy(err);
+			}
+		});
+
+		result.stream.pipe(res);
+	} catch (err) {
+		const status = err?.statusCode || err?.status || 500;
+		const message = err?.message || String(err);
+		return res.status(status >= 400 && status < 600 ? status : 500).json({
+			success: false,
+			error: 'download file failed',
 			details: message,
 		});
 	}

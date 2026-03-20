@@ -8,7 +8,7 @@ const db = require('../config/db');
  * @returns {Promise<Object>} 返回创建成功的文章对象
  */
 async function createPost(postData, userId) {
-	const { title, content, summary,status } = postData;
+	const { title, content, summary, status, cover_image, tags, is_top } = postData;
 
 	// 1. 基础校验
 	if (!title || !content) {
@@ -22,6 +22,9 @@ async function createPost(postData, userId) {
 		title: title,
 		content: content,
 		summary: summary || null,
+		cover_image: cover_image || null,
+		tags: Array.isArray(tags) ? tags.join(',') : (tags || null),
+		is_top: is_top === undefined ? false : !!is_top,
 		slug: slug,
 		user_id: userId,
 		status: status===undefined?1:status,
@@ -81,8 +84,9 @@ async function createPost(postData, userId) {
  * @returns {Promise<Object|null>}
  */
 async function getPostById(postId) {
+	const authorNameExpr = db.raw("COALESCE(NULLIF(users.nickname, ''), users.username) as author_name");
 	const post = await db.into('posts')
-		.select('posts.*', 'users.username as author_name', 'users.avatar as author_avatar')
+		.select('posts.*', authorNameExpr, 'users.avatar as author_avatar')
 		.join('users', 'posts.user_id', 'users.id')
 		.where('posts.id', postId)
 		.first();
@@ -185,12 +189,15 @@ async function getPostList(options = {}) {
 		'posts.id',
 		'posts.title',
 		'posts.summary',
+		'posts.cover_image',
+		'posts.tags',
+		'posts.is_top',
 		'posts.slug',
 		'posts.status',
 		'posts.content',
 		'posts.created_at',
 		'posts.updated_at',
-		'users.username as author_name',
+		db.raw("COALESCE(NULLIF(users.nickname, ''), users.username) as author_name"),
 		'users.avatar as author_avatar'
 	);
 
@@ -203,6 +210,7 @@ async function getPostList(options = {}) {
 	dataQuery = applyFilters(dataQuery);
 
 	// 排序：默认按创建时间倒序
+	dataQuery.orderBy('posts.is_top', 'desc');
 	dataQuery.orderBy('posts.created_at', 'desc');
 
 	// 分页
@@ -247,7 +255,10 @@ async function updatePost(id, userId, data) {
     const updateData = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.content !== undefined) updateData.content = data.content;
+    if (data.summary !== undefined) updateData.summary = data.summary;
+    if (data.cover_image !== undefined) updateData.cover_image = data.cover_image;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.is_top !== undefined) updateData.is_top = !!data.is_top;
     
     // 处理标签 (假设 tags 是数组，转为逗号分隔字符串存储，或者你有单独的标签表)
     if (data.tags !== undefined) {

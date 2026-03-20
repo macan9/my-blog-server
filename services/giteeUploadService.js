@@ -301,6 +301,45 @@ function sortDirectoryItems(items) {
 	});
 }
 
+function requestStream({ url, timeoutMs = 15000 }) {
+	return new Promise((resolve, reject) => {
+		const req = https.get(
+			url,
+			{
+				headers: {
+					'User-Agent': 'my-blog-server',
+				},
+				timeout: timeoutMs,
+			},
+			(res) => {
+				const statusCode = res.statusCode || 502;
+				if (statusCode >= 200 && statusCode < 300) {
+					return resolve(res);
+				}
+
+				const chunks = [];
+				res.on('data', (chunk) => chunks.push(chunk));
+				res.on('end', () => {
+					const body = Buffer.concat(chunks).toString('utf8');
+					const err = new Error(`download failed: ${statusCode} ${res.statusMessage || ''}`.trim());
+					err.statusCode = statusCode;
+					err.details = body;
+					reject(err);
+				});
+			}
+		);
+
+		req.on('timeout', () => {
+			req.destroy(new Error('download timeout'));
+		});
+		req.on('error', (e) => {
+			const err = new Error(`download request failed: ${e.message || String(e)}`);
+			err.statusCode = 502;
+			reject(err);
+		});
+	});
+}
+
 /**
  * 上传图片到 Gitee，并返回仓库内路径与 raw 链接。
  *
@@ -538,6 +577,34 @@ async function deleteContent({ path: currentPath }) {
 	};
 }
 
+async function getDownloadFile({ path: currentPath }) {
+	const { basePath, currentPath: relativePath, data } = await getContentMeta({ path: currentPath });
+
+	if (!data || data.type !== 'file') {
+		const err = new Error('path is not a file');
+		err.statusCode = 400;
+		throw err;
+	}
+
+	if (!data.download_url) {
+		const err = new Error('download url not found');
+		err.statusCode = 502;
+		throw err;
+	}
+
+	const stream = await requestStream({ url: data.download_url });
+
+	return {
+		stream,
+		filename: data.name,
+		contentType: stream.headers['content-type'] || 'application/octet-stream',
+		contentLength: stream.headers['content-length'] || null,
+		fullPath: data.path,
+		relativePath: relativeFromBasePath(data.path, basePath) || relativePath,
+		downloadUrl: data.download_url,
+	};
+}
+
 function getDirectoryConfig() {
 	const { owner, repo, branch, basePath } = getRepoConfig();
 	return {
@@ -548,4 +615,10 @@ function getDirectoryConfig() {
 	};
 }
 
-module.exports = { uploadAvatar, listDirectory, getDirectoryConfig, deleteContent };
+module.exports = {
+	uploadAvatar,
+	listDirectory,
+	getDirectoryConfig,
+	deleteContent,
+	getDownloadFile,
+};

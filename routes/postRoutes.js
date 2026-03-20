@@ -2,19 +2,15 @@
 const express = require('express');
 const router = express.Router();
 const postService = require('../services/postService');
-// 假设你有这样一个中间件来验证登录并挂载 req.user
 const authMiddleware = require('../middleware/auth');
 
 /**
  * POST /api/posts
- * 创建新文章
- * 需要登录权限
+ * 创建文章
  */
 router.post('/', authMiddleware, async (req, res, next) => {
 	try {
-		const { title, content, summary,  status } = req.body;
-
-		// 从认证中间件获取当前登录用户的 ID
+		const { title, content, summary, status, cover_image, tags, is_top } = req.body;
 		const userId = req.user.id;
 
 		if (!userId) {
@@ -22,7 +18,7 @@ router.post('/', authMiddleware, async (req, res, next) => {
 		}
 
 		const newPost = await postService.createPost(
-			{ title, content, summary, status },
+			{ title, content, summary, status, cover_image, tags, is_top },
 			userId
 		);
 
@@ -30,25 +26,22 @@ router.post('/', authMiddleware, async (req, res, next) => {
 			message: '文章创建成功',
 			data: newPost
 		});
-
 	} catch (error) {
-		// 统一错误处理
 		console.error('Create Post Error:', error);
 		if (error.message.includes('不能为空')) {
 			return res.status(400).json({ error: error.message });
 		}
-		next(error); // 交给全局错误处理中间件
+		next(error);
 	}
 });
 
 /**
- * GET /api/posts/:id
+ * GET /api/posts/single/:id
  * 获取文章详情
- * 公开访问 (或者也可以加 authMiddleware 限制)
  */
-router.get('single/:id', async (req, res, next) => {
+router.get('/single/:id', async (req, res, next) => {
 	try {
-		const postId = parseInt(req.params.id);
+		const postId = parseInt(req.params.id, 10);
 		if (isNaN(postId)) {
 			return res.status(400).json({ error: '无效的文章ID' });
 		}
@@ -59,160 +52,155 @@ router.get('single/:id', async (req, res, next) => {
 			return res.status(404).json({ error: '文章不存在' });
 		}
 
-		res.json({ data: post });
-
+		res.json({
+			code: 200,
+			message: 'success',
+			data: post
+		});
 	} catch (error) {
+		console.error('Get Post Detail Error:', error);
 		next(error);
 	}
 });
 
-
 router.get('/', authMiddleware, async (req, res, next) => {
-  try {
-    const { 
-      page, 
-      pageSize, 
-      keyword, 
-      startDate, 
-      endDate, 
-      status,
-      userId
-    } = req.query;
+	try {
+		const {
+			page,
+			pageSize,
+			keyword,
+			startDate,
+			endDate,
+			status,
+			userId
+		} = req.query;
 
-    // 场景判断：
-    // 1. 如果是访问 '/api/posts/my' (个人中心)，强制加上当前用户ID
-    // 2. 如果是访问 '/api/posts' (公开列表)，不加 userId，只看公开的
-    
-    // 这里演示一个通用的列表接口，通过参数控制是否查自己的
-    // 或者你可以拆分两个路由：/my (强制 userId) 和 / (公开)
-    
-    
-    
-    // 示例：如果请求路径是 /my，或者有个参数 ?mine=true
-    if (req.path === '/my' || req.query.mine === 'true') {
-      userId = req.user.id; // 只有登录用户才能查自己的
-    }
+		const result = await postService.getPostList({
+			userId: userId,
+			keyword: keyword,
+			startDate: startDate,
+			endDate: endDate,
+			status: status ? parseInt(status, 10) : undefined,
+			page: page ? parseInt(page, 10) : 1,
+			pageSize: pageSize ? parseInt(pageSize, 10) : 10
+		});
 
-    const result = await postService.getPostList({
-      userId: userId,
-      keyword: keyword,
-      startDate: startDate,
-      endDate: endDate,
-      status: status ? parseInt(status) : undefined,
-      page: page ? parseInt(page) : 1,
-      pageSize: pageSize ? parseInt(pageSize) : 10
-    });
-
-    res.json({
-      code: 200,
-      message: 'success',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Get Post List Error:', error);
-    next(error);
-  }
+		res.json({
+			code: 200,
+			message: 'success',
+			data: result
+		});
+	} catch (error) {
+		console.error('Get Post List Error:', error);
+		next(error);
+	}
 });
 
-// 专门查自己文章的路由示例
 router.get('/my', authMiddleware, async (req, res, next) => {
-  // 复用上面的逻辑，或者直接调用 service 并强制传 userId
-  // 这里为了演示拆分，你可以把上面的逻辑提取出来，或者简单地：
-  try {
-     const { page, pageSize, keyword, startDate, endDate, status } = req.query;
-     
-     const result = await postService.getPostList({
-       userId: req.user.id, // 强制绑定当前用户
-       keyword,
-       startDate,
-       endDate,
-       status: status ? parseInt(status) : undefined, // 允许用户查自己的草稿
-       page: page ? parseInt(page) : 1,
-       pageSize: pageSize ? parseInt(pageSize) : 10
-     });
-     
-     res.json({ code: 200, data: result });
-  } catch (e) {
-	console.log("e:",e)
-    next(e);
-  }
+	try {
+		const { page, pageSize, keyword, startDate, endDate, status } = req.query;
+
+		const result = await postService.getPostList({
+			userId: req.user.id,
+			keyword,
+			startDate,
+			endDate,
+			status: status ? parseInt(status, 10) : undefined,
+			page: page ? parseInt(page, 10) : 1,
+			pageSize: pageSize ? parseInt(pageSize, 10) : 10
+		});
+
+		res.json({
+			code: 200,
+			message: 'success',
+			data: result
+		});
+	} catch (error) {
+		console.log('Get My Post List Error:', error);
+		next(error);
+	}
 });
 
-// 修改文章
-router.put('/:id',authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const userId = req.user?.id; // 假设中间件已解析 token 并放入 req.user
+router.put('/:id', authMiddleware, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const userId = req.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ message: '未授权，请先登录' });
-        }
+		if (!userId) {
+			return res.status(401).json({ message: '未授权，请先登录' });
+		}
 
-        // 从 Body 获取更新数据
-        const { title, content, status, tags } = req.body;
+		const { title, content, summary, status, tags, cover_image, is_top } = req.body;
 
-        // 简单校验：至少得有一个字段要更新
-        if (!title && !content && status === undefined) {
-            return res.status(400).json({ message: '请提供至少一个要更新的字段 (title, content, status)' });
-        }
+		if (
+			title === undefined &&
+			content === undefined &&
+			summary === undefined &&
+			status === undefined &&
+			tags === undefined &&
+			cover_image === undefined &&
+			is_top === undefined
+		) {
+			return res.status(400).json({
+				message: '请至少提供一个要更新的字段(title, content, summary, status, tags, cover_image, is_top)'
+			});
+		}
 
-        const updatedPost = await postService.updatePost(id, userId, {
-            title,
-            content,
-            status,
-            tags // 假设 tags 是数组或逗号分隔字符串
-        });
+		const updatedPost = await postService.updatePost(id, userId, {
+			title,
+			content,
+			summary,
+			status,
+			tags,
+			cover_image,
+			is_top
+		});
 
-        res.json({
-            message: '文章更新成功',
-            data: updatedPost
-        });
-
-    } catch (error) {
-        console.error('Update post error:', error);
-        if (error.message === 'Post not found') {
-            return res.status(404).json({ message: '文章不存在' });
-        }
-        if (error.message === 'Permission denied') {
-            return res.status(403).json({ message: '无权修改此文章' });
-        }
-        res.status(500).json({ message: '服务器内部错误', error: error.message });
-    }
+		res.json({
+			message: '文章更新成功',
+			data: updatedPost
+		});
+	} catch (error) {
+		console.error('Update post error:', error);
+		if (error.message === 'Post not found') {
+			return res.status(404).json({ message: '文章不存在' });
+		}
+		if (error.message === 'Permission denied') {
+			return res.status(403).json({ message: '无权修改此文章' });
+		}
+		res.status(500).json({ message: '服务器内部错误', error: error.message });
+	}
 });
 
 /**
- * @route   DELETE /api/posts/:id
- * @desc    删除文章
- * @access  Private (需要登录)
+ * DELETE /api/posts/:id
+ * 删除文章
  */
-router.delete('/:id',authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const userId = req.user?.id; 
+router.delete('/:id', authMiddleware, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const userId = req.user?.id;
 
-        if (!userId) {
-            return res.status(401).json({ message: '未授权，请先登录' });
-        }
+		if (!userId) {
+			return res.status(401).json({ message: '未授权，请先登录' });
+		}
 
-        await postService.deletePost(id, userId);
+		await postService.deletePost(id, userId);
 
-        res.json({
-            message: '文章删除成功',
-            data: { id }
-        });
-
-    } catch (error) {
-        console.error('Delete post error:', error);
-        if (error.message === 'Post not found') {
-            return res.status(404).json({ message: '文章不存在' });
-        }
-        if (error.message === 'Permission denied') {
-            return res.status(403).json({ message: '无权删除此文章' });
-        }
-        res.status(500).json({ message: '服务器内部错误', error: error.message });
-    }
+		res.json({
+			message: '文章删除成功',
+			data: { id }
+		});
+	} catch (error) {
+		console.error('Delete post error:', error);
+		if (error.message === 'Post not found') {
+			return res.status(404).json({ message: '文章不存在' });
+		}
+		if (error.message === 'Permission denied') {
+			return res.status(403).json({ message: '无权删除此文章' });
+		}
+		res.status(500).json({ message: '服务器内部错误', error: error.message });
+	}
 });
-
 
 module.exports = router;
